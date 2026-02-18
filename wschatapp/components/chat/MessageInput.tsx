@@ -1,14 +1,16 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Send } from 'lucide-react'
+import { Send, StopCircle } from 'lucide-react'
 
 interface MessageInputProps {
   onSend: (message: string) => void
+  onStop?: () => void
   disabled?: boolean
+  isGenerating?: boolean
 }
 
-export default function MessageInput({ onSend, disabled }: MessageInputProps) {
+export default function MessageInput({ onSend, onStop, disabled, isGenerating }: MessageInputProps) {
   const [input, setInput] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -50,13 +52,24 @@ export default function MessageInput({ onSend, disabled }: MessageInputProps) {
           rows={1}
           className="flex-1 bg-transparent resize-none outline-none text-gray-800 placeholder:text-gray-400 text-sm py-1 max-h-30 disabled:opacity-50"
         />
-        <button
-          onClick={handleSend}
-          disabled={!input.trim() || disabled}
-          className="shrink-0 w-9 h-9 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-200 text-white rounded-xl flex items-center justify-center transition-all duration-200 disabled:cursor-not-allowed shadow-sm mb-0.5"
-        >
-          <Send className="w-4 h-4" />
-        </button>
+        
+        {isGenerating && onStop ? (
+          <button
+            onClick={onStop}
+            className="shrink-0 w-9 h-9 bg-red-500 hover:bg-red-600 text-white rounded-xl flex items-center justify-center transition-all duration-200 shadow-sm mb-0.5"
+            title="Stop generating"
+          >
+            <StopCircle className="w-4 h-4" />
+          </button>
+        ) : (
+          <button
+            onClick={handleSend}
+            disabled={!input.trim() || disabled}
+            className="shrink-0 w-9 h-9 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-200 text-white rounded-xl flex items-center justify-center transition-all duration-200 disabled:cursor-not-allowed shadow-sm mb-0.5"
+          >
+            <Send className="w-4 h-4" />
+          </button>
+        )}
       </div>
       <p className="text-xs text-gray-400 text-center mt-2">
         Powered by Gemini AI · Messages are end-to-end stored securely

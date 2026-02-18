@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { Message } from '@/types'
@@ -10,9 +10,9 @@ export function useWebSocket(userId: string | undefined) {
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [isTyping, setIsTyping] = useState<boolean>(false)
+  const abortControllerRef = useRef<AbortController | null>(null)
   const supabase = createClient()
 
-  // Fetch existing messages on mount
   const fetchMessages = useCallback(async () => {
     if (!userId) return
 
@@ -32,14 +32,12 @@ export function useWebSocket(userId: string | undefined) {
     fetchMessages()
   }, [fetchMessages])
 
-  // Subscribe to Realtime WebSocket channel
   useEffect(() => {
     if (!userId) return
 
     const channel = supabase
       .channel(`messages:${userId}`)
       .on(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         'postgres_changes' as any,
         {
           event: 'INSERT',
@@ -50,14 +48,12 @@ export function useWebSocket(userId: string | undefined) {
         (payload: RealtimePostgresChangesPayload<Message>) => {
           const newMessage = payload.new as Message
 
-          // Add message to state
           setMessages((prev) => {
             const exists = prev.find((m) => m.id === newMessage.id)
             if (exists) return prev
             return [...prev, newMessage]
           })
 
-          // Show toast when Gemini responds
           if (newMessage.role === 'assistant') {
             setIsTyping(false)
             toast.success('Gemini replied!', {
@@ -69,7 +65,6 @@ export function useWebSocket(userId: string | undefined) {
       )
       .subscribe()
 
-    // Cleanup WebSocket on unmount
     return () => {
       supabase.removeChannel(channel)
     }
@@ -92,43 +87,59 @@ export function useWebSocket(userId: string | undefined) {
 
       setIsTyping(true)
 
+      // Create new abort controller for this request
+      abortControllerRef.current = new AbortController()
+
       try {
         const response = await fetch('/api/gemini', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: content.trim(), userId }),
+          signal: abortControllerRef.current.signal,
         })
 
         if (!response.ok) {
           throw new Error('Gemini API failed')
         }
-      } catch {
+      } catch (error: any) {
+        if (error.name === 'AbortError') {
+          toast.info('Response stopped')
+        } else {
+          toast.error('Failed to get AI response. Please try again.')
+        }
         setIsTyping(false)
-        toast.error('Failed to get AI response. Please try again.')
+      } finally {
+        abortControllerRef.current = null
       }
     },
     [userId]
   )
 
-  const deleteMessage = useCallback(
-  async (messageId: string): Promise<void> => {
-    const { error } = await supabase
-      .from('messages')
-      .delete()
-      .eq('id', messageId)
-
-    if (error) {
-      toast.error('Failed to delete message')
-      return
+  const stopGenerating = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      setIsTyping(false)
+      toast.info('Stopped generating response')
     }
+  }, [])
 
-    // Remove from local state immediately
-    setMessages((prev) => prev.filter((m) => m.id !== messageId))
-    toast.success('Message deleted')
-  },
-  []
-)
+  const deleteMessage = useCallback(
+    async (messageId: string): Promise<void> => {
+      const { error } = await supabase
+        .from('messages')
+        .delete()
+        .eq('id', messageId)
 
-// Return it from the hook
-return { messages, loading, isTyping, sendMessage, deleteMessage }
+      if (error) {
+        toast.error('Failed to delete message')
+        return
+      }
+
+      setMessages((prev) => prev.filter((m) => m.id !== messageId))
+      toast.success('Message deleted')
+    },
+    []
+  )
+
+  return { messages, loading, isTyping, sendMessage, deleteMessage, stopGenerating }
 }

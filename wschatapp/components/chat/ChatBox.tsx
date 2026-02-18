@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation'
 
 export default function ChatBox() {
   const { user, signOut } = useAuth()
-  const { messages, loading, isTyping, sendMessage, deleteMessage } = useWebSocket(user?.id)
+  const { messages, loading, isTyping, sendMessage, deleteMessage, stopGenerating } = useWebSocket(user?.id)
   const router = useRouter()
 
   const handleSignOut = async () => {
@@ -79,7 +79,12 @@ export default function ChatBox() {
      <MessageList messages={messages} isTyping={isTyping} deleteMessage={deleteMessage} />
 
       {/* Input Area */}
-      <MessageInput onSend={sendMessage} disabled={isTyping} />
+     <MessageInput 
+       onSend={sendMessage} 
+       onStop={stopGenerating}
+       disabled={isTyping} 
+       isGenerating={isTyping}
+     />
     </div>
   )
 }
