@@ -1,16 +1,24 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { User } from '@supabase/supabase-js'
-import { createClient } from '@/lib/supabase/client'
+import { databaseService } from '@/services/database/supabase.service'
+import { createBrowserClient } from '@supabase/ssr'
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
-  const supabase = createClient()
+  
+  // Use useMemo to create client only once
+  const supabase = useMemo(
+    () => createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    ),
+    []
+  )
 
   useEffect(() => {
-    // Get initial session
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       setUser(user)
@@ -19,7 +27,6 @@ export function useAuth() {
 
     getUser()
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setUser(session?.user ?? null)
@@ -28,10 +35,10 @@ export function useAuth() {
     )
 
     return () => subscription.unsubscribe()
-  }, [])
+  }, [supabase])
 
   const signOut = async () => {
-    await supabase.auth.signOut()
+    await databaseService.signOut()
   }
 
   return { user, loading, signOut }

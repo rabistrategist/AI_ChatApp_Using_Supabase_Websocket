@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { databaseService } from '@/services/database/supabase.service'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react'
@@ -14,7 +14,6 @@ export default function LoginForm() {
   const [loading, setLoading] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -22,50 +21,28 @@ export default function LoginForm() {
 
     try {
       if (isSignUp) {
-        const { data, error } = await supabase.auth.signUp({ email, password })
-        if (error) throw error
-
-        // Check if user already exists
-        if (data.user && data.user.identities && data.user.identities.length === 0) {
-          toast.error('An account with this email already exists. Please sign in.')
-          setIsSignUp(false)
-          return
-        }
-
-        // Email confirmation required
+        await databaseService.signUp(email, password)
         setEmailSent(true)
         toast.success('Account created! Please check your email to verify.')
-
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password })
-
-        if (error) {
-          // Email not confirmed yet
-          if (error.message.toLowerCase().includes('email not confirmed')) {
-            toast.error('Please verify your email first. Check your inbox for a confirmation link.')
-            return
-          }
-          // Wrong credentials
-          if (error.message.toLowerCase().includes('invalid login credentials')) {
-            toast.error('Incorrect email or password. Please try again.')
-            return
-          }
-          throw error
-        }
-
+        await databaseService.signIn(email, password)
         toast.success('Welcome back!')
         router.push('/chat')
         router.refresh()
       }
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Something went wrong'
-      toast.error(message)
+    } catch (error: any) {
+      if (error.message?.toLowerCase().includes('email not confirmed')) {
+        toast.error('Please verify your email first.')
+      } else if (error.message?.toLowerCase().includes('invalid login credentials')) {
+        toast.error('Incorrect email or password.')
+      } else {
+        toast.error(error.message || 'Something went wrong')
+      }
     } finally {
       setLoading(false)
     }
   }
 
-  // Email sent confirmation screen
   if (emailSent) {
     return (
       <div className="text-center space-y-4 py-4">
@@ -76,9 +53,6 @@ export default function LoginForm() {
           <h3 className="font-bold text-gray-800 text-lg">Check your email</h3>
           <p className="text-gray-500 text-sm mt-1">
             We sent a confirmation link to <span className="font-semibold text-blue-600">{email}</span>
-          </p>
-          <p className="text-gray-400 text-xs mt-2">
-            Click the link in the email to activate your account, then come back to sign in.
           </p>
         </div>
         <button
@@ -96,7 +70,6 @@ export default function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Email Field */}
       <div className="relative">
         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-400" />
         <input
@@ -109,7 +82,6 @@ export default function LoginForm() {
         />
       </div>
 
-      {/* Password Field */}
       <div className="relative">
         <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-400" />
         <input
@@ -130,7 +102,6 @@ export default function LoginForm() {
         </button>
       </div>
 
-      {/* Submit Button */}
       <button
         type="submit"
         disabled={loading}
@@ -149,7 +120,6 @@ export default function LoginForm() {
         )}
       </button>
 
-      {/* Toggle Sign Up / Sign In */}
       <p className="text-center text-sm text-gray-500">
         {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
         <button

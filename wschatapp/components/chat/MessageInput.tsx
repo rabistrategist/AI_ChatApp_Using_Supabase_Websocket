@@ -4,7 +4,7 @@ import { useState, useRef } from 'react'
 import { Send, StopCircle } from 'lucide-react'
 
 interface MessageInputProps {
-  onSend: (message: string) => void
+  onSend: (message: string) => void | Promise<void>
   onStop?: () => void
   disabled?: boolean
   isGenerating?: boolean
@@ -72,7 +72,7 @@ export default function MessageInput({ onSend, onStop, disabled, isGenerating }:
         )}
       </div>
       <p className="text-xs text-gray-400 text-center mt-2">
-        Powered by Gemini AI · Messages are end-to-end stored securely
+        Powered by Gemini AI · Messages are stored securely
       </p>
     </div>
   )
